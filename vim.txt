@@ -1,0 +1,330 @@
+ubuntu20.04 用vim+ctags+cscope搭建符合sourceinsight习惯的IDE
+1.安装vim
+sudo apt install vim
+1.
+按自己习惯配置
+
+vim ~/.vimrc
+set nocompatible
+set nu
+filetype on
+set history=1000
+set background=dark
+syntax on
+set autoindent
+set smartindent
+set tabstop=4
+set shiftwidth=4
+set showmatch
+set guioptions-=T
+set ruler
+set hls
+set incsearch
+set cursorline
+set fencs=utf-8,ucs-bom,euc-jp,gb18030,gbk,gb2312,cp936
+
+2.ctags
+建立文件索引，实现函数或变量的跳转功能；
+缺点：只能跳转到函数定义，不能查找那些地方调用了该函数；
+
+(1)安装
+sudo apt-get install ctags
+or
+sudo apt-get install exuberant-ctags
+(2)生成tags文件
+ctags -R
+1.
+在当前目录生产索引文件
+
+(3)指定tags文件目录
+vim ~/.vimrc
+set tags=./tags,./TAGS,tags;~,TAGS;~
+
+“./tags”：当前目录查找tags文件
+如果要运用多个不同目录，可以用","隔开，或则
+
+set tags+=path1
+set tags+=path2
+1.
+2.
+如果需要在不同工程查阅代码，可以添加
+
+set tags+=path1;
+set autochdir
+1.
+2.
+注：第一个分号不能少，如果当前目录没找到，就到父目录查找，一直递归；
+
+(4)跳转到指定函数或变量
+tag func_name   #可以tab键补全
+
+CTRL+] : 跳转一次
+CTRO+o ：返回一次跳转
+CTRL+T： 返回到最初跳转
+
+]]:向后跳到下一个函数头
+[[：上一个函数头
+
+ctags不会生产局部变脸的索引
+:tags 可以列出查找/跳转过程
+
+3.cscope
+可以查找函数的定义，调用栈等；
+
+(1)安装
+sudo apt-get install cscope
+1.
+(2)使用
+cscope -Rbqk
+1.
+参数说明：
+
+R : 递归所有子目录，建立索引；
+b : 建立关联数据库，不导入使用者界面；
+q : 建立cscope.in.out和cscope.po.out，加快搜索速度
+k : 不搜索预设的include目录不搜尋(/usr/include)
+
+手动加载cscope.out文件
+
+:cs add cscope.out
+1.
+设置自动加入
+注意：使用相对路径生产cscope.out，可能出现查找结果无法跳转问题；
+用"cs add $PWD/cscope.out“ 指定绝对路径；
+
+vim ~/.vimrc
+
+if has("cscope")
+set csprg=/usr/bin/cscope
+    "指定:cstag的搜索顺序。0表示先搜索cscope数据库，若不匹配，再搜索tag文件，1
+    "则相反
+    set csto=0
+    ":tag/Ctrl-]/vim -t将使用:cstag，而不是默认的:tag
+    set cst
+    "+(将结果追加到quickfix窗口)、-(清空上一次的结果)、0(不使用quickfix。没有指定也相当于标志为0)))
+    "set cscopequickfix=s-,c-,d-,i-,t-,e- " 使用QuickFix窗口来显示cscope查找结果
+    set nocsverb        "增加cscope数据库时，将不会打印成功或失败信息
+    set cspc=3          "指定在查找结果中显示多少级文件路径,默认值0表示显示全路径,1表示只显示文件名"
+    if filereadable("cscope.out")
+        cs add $PWD/cscope.out $PWD
+        "cs add cscope.out
+    else" 子目录打开，向上查找
+        let cscope_file=findfile("cscope.out", ".;")
+        let cscope_pre=matchstr(cscope_file, ".*/")
+        if !empty(cscope_file) && filereadable(cscope_file)
+            exe "cs add" cscope_file cscope_pre
+        endif
+    endif
+    set nocsverb
+endif
+
+补充一点，vim可能走系统默认的/etc/vimrc配置，如果有权限可以直接注掉，如果没有（公用服务器），将
+
+alias vim="vim -u ~/.vimrc"
+1.
+写入.bashrc ,引用自己定义的配置
+
+添加cscope符号索引数据库后，可以调用"cscope find"命令进行查找，vim支持8种cscope的查询功能
+
+:cs find x {name}
+
+s: 查找C语言符号，即查找函数名、宏、枚举值等出现的地方
+g: 查找函数、宏、枚举等定义的位置，类似ctags所提供的功能
+d: 查找本函数调用的函数
+c: 查找调用本函数的函数
+t: 查找指定的字符串
+e: 查找egrep模式，相当于egrep功能，但查找速度快多了
+f: 查找并打开文件，类似vim的find功能
+i: 查找包含本文件的文件
+
+定义快捷键
+vim .vimrc
+
+nmap zs :cs find s <C-R>=expand("<cword>")<CR><CR>
+nmap zg :cs find g <C-R>=expand("<cword>")<CR><CR>
+nmap zc :cs find c <C-R>=expand("<cword>")<CR><CR>
+nmap zt :cs find t <C-R>=expand("<cword>")<CR><CR>
+nmap ze :cs find e <C-R>=expand("<cword>")<CR><CR>
+nmap zf :cs find f <C-R>=expand("<cfile>")<CR><CR>
+nmap zi :cs find i ^<C-R>=expand("<cfile>")<CR>$<CR>
+nmap zd :cs find d <C-R>=expand("<cword>")<CR><CR>
+
+其他插件
+vim支持很多插件，为方便管理，这里先安装插件管家，通过这个插件管家自动安装、卸载、更新其他插件；
+vim常用的管家有vundle和vim-plug，这里用vundle
+
+1.安装vundle插件管家
+git clone https://github.com/VundleVim/Vundle.vim.git ~/.vim/bundle/Vundle.vim
+1.
+在.vimrc开启vundle
+
+
+vim ~/.vimrc
+
+set rtp+=~/.vim/bundle/Vundle.vim
+call vundle#begin()
+
+    Plugin 'VundleVim/Vundle.vim'
+
+call vundle#end()
+
+Vundle 支持的命令（vim 命令行模式下）
+
+PluginList: 列出安装的插件
+PluginInstall: 根据配置文件安装插件
+PluginUpdate: 更新插件
+PluginSearch [name]: 查找名为 [name] 的插件
+
+2.安装NERD插件
+切出一块区域，用来显示从根目录开始的文件结构，可从该索引区直接打开文件；
+
+在.vimrc添加插件
+
+	call vundle#begin()
+    Plugin 'VundleVim/Vundle.vim'
+    Plugin 'The-NERD-Tree'
+	call vundle#end()
+
+安装
+
+:PluginInstall
+1.
+在 vim 命令行模式下用
+
+:NERDTree 目录名 "
+1.
+启动，默认当前目录。通过 j k 上下移动光标，o 或回车打开文件。
+配置：
+
+nmap <F2> :NERDTreeFind<CR><CR> "设置F2(我电脑刚好f2闲置)为开启nerdtree的快捷键
+let NERDTreeWinPos=1  "将nerdtree区域设置在右边
+
+
+3.taglist插件：
+屏幕切出一块区域显示宏、变量名、函数名的索引；
+安装(要系统预先安装vim,ctags)
+
+Plugin 'taglist.vim'
+:PluginInstall
+
+2.
+安装后，在命令行启动
+
+:TlistOpen/TlistClose
+1.
+可以用CTRL+W快捷键在Taglist窗口和编辑窗口切换；
+
+在.vimrc配置自动启动
+
+" ----------------------------- plugin taglist start -----------------------------
+"let Tlist_Use_Right_Window = 1
+let Tlist_Show_One_File=1   "仅显示一个文件的tag
+let Tlist_Exit_OnlyWindow=1 "taglist为最后一个窗口时，退出vim
+let Tlist_Auto_Open = 1     "设置打开vim时，自动启动taglist
+
+4.YouCompleteMe插件
+强大的代码自动补全
+
+Plugin 'Valloric/YouCompleteMe'
+1.
+手动安装：
+
+git clone https://github.com/Valloric/YouCompleteMe.git ~/.vim/bundle/YouCompleteMe
+cd ~/.vim/bundle/YouCompeteme
+
+git submodule update --init --recursive
+
+sudo apt install clang
+sudo apt install build-essential cmake
+sudo apt-get install python-dev python3-dev
+#--clang-completer支持C语言，其他语言选择all:如果提示不支持root就添加：--force-sudo
+./install.py --clang-completer
+
+
+在.vimrc添加配置:
+
+"YouCompletMe
+" 自动补全配置
+set completeopt=longest,menu "让Vim的补全菜单行为与一般IDE一致(参考VimTip1228)
+autocmd InsertLeave * if pumvisible() == 0|pclose|endif "离开插入模式后自动关闭预览窗口
+inoremap <expr> <CR>       pumvisible() ? "\<C-y>" : "\<CR>" "回车即选中当前项
+"上下左右键的行为 会显示其他信息
+inoremap <expr> <Down>     pumvisible() ? "\<C-n>" : "\<Down>"
+inoremap <expr> <Up>       pumvisible() ? "\<C-p>" : "\<Up>"
+inoremap <expr> <PageDown> pumvisible() ? "\<PageDown>\<C-p>\<C-n>" : "\<PageDown>"
+inoremap <expr> <PageUp>   pumvisible() ? "\<PageUp>\<C-p>\<C-n>" : "\<PageUp>"
+"youcompleteme  默认tab  s-tab 和自动补全冲突
+"let g:ycm_key_list_select_completion=['<c-n>']
+"let g:ycm_key_list_select_completion = ['<Down>']
+"let g:ycm_key_list_previous_completion=['<c-p>']
+"let g:ycm_key_list_previous_completion = ['<Up>']
+let g:ycm_confirm_extra_conf=0 "关闭加载.ycm_extra_conf.py提示
+let g:ycm_collect_identifiers_from_tags_files=1 " 开启 YCM 基于标签引擎
+let g:ycm_min_num_of_chars_for_completion=1 " 从第2个键入字符就开始罗列匹配项
+let g:ycm_cache_omnifunc=0 " 禁止缓存匹配项,每次都重新生成匹配项
+let g:ycm_seed_identifiers_with_syntax=1 " 语法关键字补全
+nnoremap <F5> :YcmForceCompileAndDiagnostics<CR> "force recomile with syntatic
+"nnoremap <leader>lo :lopen<CR> "open locationlist
+"nnoremap <leader>lc :lclose<CR> "close locationlist
+inoremap <leader><leader> <C-x><C-o>
+"在注释输入中也能补全
+let g:ycm_complete_in_comments = 1
+"在字符串输入中也能补全
+let g:ycm_complete_in_strings = 1
+"注释和字符串中的文字也会被收入补全
+let g:ycm_collect_identifiers_from_comments_and_strings = 0
+nnoremap <leader>jd :YcmCompleter GoToDefinitionElseDeclaration<CR>
+let g:clang_library_path='/usr/lib/llvm-10/lib/libclang.so'
+
+如果打开vim出现如下错误：
+
+NoExtraConfDetected: No .ycm_extra_conf.py file detected
+1.
+在home目录创建文件.ycm_extra_conf.py
+
+import os
+import ycm_core
+
+flags = [
+    '-Wall',
+    '-Wextra',
+    '-Werror',
+    '-Wno-long-long',
+    '-Wno-variadic-macros',
+    '-fexceptions',
+    '-DNDEBUG',
+    '-std=c++11',
+    '-x',
+    'c++',
+    '-I',
+    '/usr/include',
+    '-isystem',
+    '/usr/lib/gcc/x86_64-linux-gnu/5/include',
+    '-isystem',
+    '/usr/include/x86_64-linux-gnu',
+    '-isystem'
+    '/usr/include/c++/5',
+    '-isystem',
+    '/usr/include/c++/5/bits'
+  ]
+
+SOURCE_EXTENSIONS = [ '.cpp', '.cxx', '.cc', '.c', ]
+
+def FlagsForFile( filename, **kwargs ):
+  return {
+    'flags': flags,
+    'do_cache': True
+  }
+
+在.vimrc添加
+
+let g:ycm_global_ycm_extra_conf='~/.ycm_extra_conf.py'
+let g:ycm_confirm_extra_conf = 0
+1.
+2.
+5.侧边栏显示git修改
+Plugin 'airblade/vim-gitgutter
+1.
+6.目录树显示文件的git修改
+登录后复制
+Plugin 'Xuyuanp/nerdtree-git-plugin'
